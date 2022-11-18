@@ -82,6 +82,8 @@ struct send_info
 {
     char *src_ip;
     char *dst_ip;
+    char *src_mac;
+    char *dst_mac;
     __u16 src_port;
     __u16 dst_port;
     const char *device;
@@ -99,31 +101,10 @@ void *prepare_and_send_packets(struct send_info *info);
  *
  * @return 0 on success or -1 on failure (path not found).
  **/
-static __always_inline int get_src_mac_address(const char *dev, __u8 *src_mac)
+static __always_inline int get_mac_address(char *addr, __u8 *src_mac)
 {
-    // Format path to source MAC on file system using network class.
-    char path[255];
-    snprintf(path, sizeof(path) - 1, "/sys/class/net/%s/address", dev);
-
-    // Attempt to open path/file and check.
-    FILE *fp = fopen(path, "r");
-
-    if (!fp)
-    {
-        return -1;
-    }
-
-    // Create buffer to copy contents of file to.
-    char buffer[255];
-
-    // Copy contents of file to buffer.
-    fgets(buffer, sizeof(buffer), fp);
-
     // Scan MAC address.
-    sscanf(buffer, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &src_mac[0], &src_mac[1], &src_mac[2], &src_mac[3], &src_mac[4], &src_mac[5]);
-
-    // Close file.
-    fclose(fp);
+    sscanf(addr, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &src_mac[0], &src_mac[1], &src_mac[2], &src_mac[3], &src_mac[4], &src_mac[5]);
 
     return 0;
 }

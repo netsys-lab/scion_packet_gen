@@ -9,7 +9,7 @@
 
 __u32 xdp_flags = XDP_FLAGS_DRV_MODE;
 __u32 bind_flags = XDP_USE_NEED_WAKEUP;
-__u16 batch_size = 1;
+__u16 batch_size = 16;
 
 /**
  * ----------------------------------------- Setup Socket --------------------------------------------
@@ -150,7 +150,7 @@ struct xsk_socket_info *setup_socket(const char *interface, unsigned int queue)
         exit(EXIT_FAILURE);
     }
 
-    return 0;
+    return xsk_socket;
 }
 
 /**
@@ -211,7 +211,9 @@ int send_batch(struct xsk_socket_info *xsk, int thread_id, void *pckt, __u16 len
 
     // Retrieve the TX index from the TX ring to fill.
     while (xsk_ring_prod__reserve(&xsk->tx, batch_size, &tx_idx) < batch_size)
+    {
         complete_tx(xsk);
+    }
 
     unsigned int idx = 0;
 
@@ -262,6 +264,7 @@ int send_batch(struct xsk_socket_info *xsk, int thread_id, void *pckt, __u16 len
 void *
 prepare_and_send_packets(struct send_info *info)
 {
+    printf("Starting to send packets2\n");
 
     // Let's parse some config values before creating the socket so we know what we're doing.
     __u8 protocol = IPPROTO_UDP;
@@ -271,26 +274,10 @@ prepare_and_send_packets(struct send_info *info)
     __u16 exact_pl_len = 0;
     __u16 data_len;
 
-    // Check if source MAC address is set properly. If not, let's get the MAC address of the interface we're sending packets out of.
-    if (src_mac[0] == 0 && src_mac[1] == 0 && src_mac[2] == 0 && src_mac[3] == 0 && src_mac[4] == 0 && src_mac[5] == 0)
-    {
-        if (get_src_mac_address(info->device, src_mac) != 0)
-        {
-            fprintf(stdout, "WARNING - Failed to retrieve MAC address for %s.\n", info->device);
-        }
+    ;
 
-        if (src_mac[0] == 0 && src_mac[1] == 0 && src_mac[2] == 0 && src_mac[3] == 0 && src_mac[4] == 0 && src_mac[5] == 0)
-        {
-            fprintf(stdout, "WARNING - Source MAC address retrieved is 00:00:00:00:00:00.\n");
-        }
-    }
-
-    // Check if destination MAC is set and if not, get the default gateway's MAC address.
-    if (dst_mac[0] == 0 && dst_mac[1] == 0 && dst_mac[2] == 0 && dst_mac[3] == 0 && dst_mac[4] == 0 && dst_mac[5] == 0)
-    {
-        // Retrieve the default gateway's MAC address and store it in dst_mac.
-        get_gw_mac((__u8 *)&dst_mac);
-    }
+    get_mac_address(info->src_mac, src_mac);
+    get_mac_address(info->dst_mac, dst_mac);
 
     /* Our goal below is to set as many things before the while loop as possible since any additional instructions inside the while loop will impact performance. */
 

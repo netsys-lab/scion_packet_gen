@@ -23,8 +23,13 @@ int main(int argc, char *argv[])
     info.device = argv[1];
     info.src_ip = argv[2];
     info.dst_ip = argv[3];
-    info.src_port = *((unsigned short *)argv[4]);
-    info.dst_port = *((unsigned short *)argv[5]);
+    info.src_port = (unsigned short)atoi(argv[4]);
+    info.dst_port = (unsigned short)atoi(argv[5]);
+    info.src_mac = argv[6];
+    info.dst_mac = argv[7];
+    info.xsk = xsk_inf;
+
+    printf("Starting to send packets\n");
 
     prepare_and_send_packets(&info);
 
