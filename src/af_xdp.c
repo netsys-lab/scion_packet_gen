@@ -9,7 +9,7 @@
 
 __u32 xdp_flags = XDP_FLAGS_DRV_MODE | XDP_ZEROCOPY;
 __u32 bind_flags = XDP_USE_NEED_WAKEUP;
-__u16 batch_size = 256;
+__u16 batch_size = 512;
 
 /**
  * ----------------------------------------- Setup Socket --------------------------------------------
@@ -260,7 +260,7 @@ int send_batch(struct xsk_socket_info *xsk, int thread_id, void *pckt, __u16 len
         __u64 addrat = xsk->umem_frame_addr[idx];
 
         // We must copy our packet data to the UMEM area at the specific index (idx * frame size). We did this earlier.
-        memcpy(xsk_umem__get_data(xsk->umem->buffer, addrat), pckt, length);
+        // memcpy(xsk_umem__get_data(xsk->umem->buffer, addrat), pckt, length);
 
         // Retrieve TX descriptor at index.
         struct xdp_desc *tx_desc = xsk_ring_prod__tx_desc(&xsk->tx, tx_idx + i);
@@ -386,6 +386,15 @@ prepare_and_send_packets(struct send_info *info)
     // TODO: UDP HEader checksum
     __u16 pckt_len = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + info->data_len;
     // udph->check = udp_checksum(buffer, pckt_len, saddr.s_addr, daddr.s_addr);
+
+    for (int i = 0; i < NUM_FRAMES; i++)
+    {
+        // We must retrieve the next available address in the UMEM.
+        __u64 addrat = info->xsk->umem_frame_addr[i];
+
+        // We must copy our packet data to the UMEM area at the specific index (idx * frame size). We did this earlier.
+        memcpy(xsk_umem__get_data(info->xsk->umem->buffer, addrat), buffer, pckt_len);
+    }
 
     // Loop.
     while (1)
