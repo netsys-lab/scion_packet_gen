@@ -1,15 +1,15 @@
 
 #include "af_xdp.h"
-
+#include <time.h>
 #define MAX_PCKT_LEN 0xFFFF
 
 /**
  * ----------------------------------------- Global Vars --------------------------------------------
  */
 
-__u32 xdp_flags = XDP_FLAGS_DRV_MODE;
+__u32 xdp_flags = XDP_FLAGS_DRV_MODE | XDP_ZEROCOPY;
 __u32 bind_flags = XDP_USE_NEED_WAKEUP;
-__u16 batch_size = 16;
+__u16 batch_size = 256;
 
 /**
  * ----------------------------------------- Setup Socket --------------------------------------------
@@ -157,6 +157,21 @@ struct xsk_socket_info *setup_socket(const char *interface, unsigned int queue)
  * ----------------------------------------- Write Packets --------------------------------------------
  */
 
+static void kick_tx(struct xsk_socket_info *xsk)
+{
+    int ret;
+    do
+    {
+        ret = sendto(xsk_socket__fd(xsk->xsk), NULL, 0, MSG_DONTWAIT, NULL, 0);
+    } while (ret < 0 && errno == EAGAIN);
+
+    if (ret < 0 && errno != ENOBUFS && errno != EBUSY)
+    {
+        printf("Exit with code %d\n", ret);
+        exit(ret);
+    }
+}
+
 /*
  * Completes the TX call via a syscall and also checks if we need to free the TX buffer.
  *
@@ -183,15 +198,27 @@ static void complete_tx(struct xsk_socket_info *xsk)
     }
 
     // Try to free n (batch_size) frames on the completion ring.
-    completed = xsk_ring_cons__peek(&xsk->umem->cq, batch_size, &idx_cq);
-
-    if (completed > 0)
+    /*while ((completed = xsk_ring_cons__peek(&xsk->umem->cq, batch_size, &idx_cq)) < batch_size)
     {
+        // If we need to wakeup, execute syscall to wake up socket.
+        if (!(bind_flags & XDP_USE_NEED_WAKEUP) || xsk_ring_prod__needs_wakeup(&xsk->tx))
+        {
+            sendto(xsk_socket__fd(xsk->xsk), NULL, 0, MSG_DONTWAIT, NULL, 0);
+        }
+    }*/
+
+    while (xsk->outstanding_tx > 0)
+    {
+        completed = xsk_ring_cons__peek(&xsk->umem->cq, batch_size, &idx_cq);
         // Release "completed" frames.
         xsk_ring_cons__release(&xsk->umem->cq, completed);
 
         xsk->outstanding_tx -= completed;
     }
+
+    // completed = xsk_ring_cons__peek(&xsk->umem->cq, batch_size, &idx_cq);
+
+    // printf("Released %d frames from cq, outstanding_tx = %d\n", completed, xsk->outstanding_tx);
 }
 
 /**
@@ -209,10 +236,13 @@ int send_batch(struct xsk_socket_info *xsk, int thread_id, void *pckt, __u16 len
     // This represents the TX index.
     __u32 tx_idx = 0;
 
+    unsigned int reserved = 0;
+
     // Retrieve the TX index from the TX ring to fill.
-    while (xsk_ring_prod__reserve(&xsk->tx, batch_size, &tx_idx) < batch_size)
+    while ((reserved = xsk_ring_prod__reserve(&xsk->tx, batch_size, &tx_idx)) < batch_size)
     {
         complete_tx(xsk);
+        // printf("reserved %d frames from tx, idx is now %d\n", reserved, tx_idx);
     }
 
     unsigned int idx = 0;
@@ -247,6 +277,7 @@ int send_batch(struct xsk_socket_info *xsk, int thread_id, void *pckt, __u16 len
 
     // Increase outstanding.
     xsk->outstanding_tx += batch_size;
+    // printf("Submitted %d frames from cq, outstanding_tx = %d\n", batch_size, xsk->outstanding_tx);
 
     // Complete TX again.
     complete_tx(xsk);
@@ -377,9 +408,10 @@ prepare_and_send_packets(struct send_info *info)
                 srcport = ntohs(udph->source);
                 dstport = ntohs(udph->dest);
             }
-            fprintf(stdout, "Sent %d bytes of data from %s:%d to %s:%d.\n", pckt_len, s_ip, srcport, info->dst_ip, dstport);
+            // fprintf(stdout, "Sent %d bytes of data from %s:%d to %s:%d.\n", pckt_len, s_ip, srcport, info->dst_ip, dstport);
         }
 
+        // usleep(1);
         // Check data.
     }
 }

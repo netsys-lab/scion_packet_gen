@@ -11,15 +11,8 @@
 int main(int argc, char *argv[])
 {
 
-    struct xsk_socket_info *xsk_inf = setup_socket(argv[1], 0);
-    if (xsk_inf == NULL)
-    {
-        printf("FAILED");
-        return 1;
-    }
-
     struct send_info info;
-    info.data_len = 1000;
+    info.data_len = 1400;
     info.device = argv[1];
     info.src_ip = argv[2];
     info.dst_ip = argv[3];
@@ -27,6 +20,14 @@ int main(int argc, char *argv[])
     info.dst_port = (unsigned short)atoi(argv[5]);
     info.src_mac = argv[6];
     info.dst_mac = argv[7];
+    info.queue = (unsigned short)atoi(argv[8]);
+
+    struct xsk_socket_info *xsk_inf = setup_socket(argv[1], info.queue);
+    if (xsk_inf == NULL)
+    {
+        printf("FAILED");
+        return 1;
+    }
     info.xsk = xsk_inf;
 
     printf("Starting to send packets\n");

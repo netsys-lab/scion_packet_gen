@@ -88,6 +88,7 @@ struct send_info
     __u16 dst_port;
     const char *device;
     __u16 data_len;
+    unsigned int queue;
     struct xsk_socket_info *xsk;
 };
 
