@@ -38,7 +38,7 @@ MAIN_SRC := main.c
 MAIN_OUT := pkt_gen
 
 # Global and main flags.
-GLOBAL_FLAGS := -O3
+GLOBAL_FLAGS := -O3 -march=sandybridge -mtune=broadwell
 MAIN_FLAGS := -pthread -lelf -lz
 
 # Chains.

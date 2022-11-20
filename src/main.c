@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
 {
 
     struct send_info info;
-    info.data_len = 1400;
+    info.data_len = 1440;
     info.device = argv[1];
     info.src_ip = argv[2];
     info.dst_ip = argv[3];
