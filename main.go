@@ -9,12 +9,16 @@ package main
 import "C"
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"os/exec"
 	"unsafe"
 
 	"github.com/netsys-lab/scion_packet_gen/cmd"
+	"github.com/netsys-lab/scion_packet_gen/scion"
+	"github.com/scionproto/scion/pkg/addr"
+	"github.com/scionproto/scion/pkg/snet"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -23,19 +27,26 @@ func main() {
 	cmd.ConfigureLogging()
 	log.Debug("[Main] starting with opt: ", cmd.Opts)
 
-	if len(args) < 2 {
-		log.Fatal("Not enough arguments, src and dst address are required")
+	if len(args) < 3 {
+		log.Fatal("Not enough arguments, ia, src and dst address are required")
 	}
 
-	srcAddr, err := net.ResolveUDPAddr("udp", args[0])
+	ia, err := addr.ParseIA(args[0])
 	if err != nil {
-		log.Fatal("Could not parse src addr ", args[0], ": ", err)
+		log.Fatal("Could not parse ia ", args[0], ": ", err)
 	}
 
-	dstAddr, err := net.ResolveUDPAddr("udp", args[1])
+	srcAddr, err := net.ResolveUDPAddr("udp", args[1])
 	if err != nil {
-		log.Fatal("Could not parse dst addr ", args[1], ": ", err)
+		log.Fatal("Could not parse src addr ", args[1], ": ", err)
 	}
+
+	remoteSAddr, err := snet.ParseUDPAddr(args[2])
+	if err != nil {
+		log.Fatal("Could not parse dst SCION addr ", args[2], ": ", err)
+	}
+
+	dstAddr := remoteSAddr.Host
 
 	err, srcMac, errString := Exec("cat", fmt.Sprintf("/sys/class/net/%s/address", cmd.Opts.Interface))
 	if err != nil {
@@ -47,7 +58,32 @@ func main() {
 		log.Fatal("Failed to obtain dst mac from arp table for ip ", dstAddr.IP, ": ", err, "; verbose: ", errString)
 	}
 
-	bts := make([]byte, 10)
+	// Create SCION data payload
+
+	ps, err := scion.NewPacketSerializer(ia, srcAddr, remoteSAddr)
+	if err != nil {
+		log.Fatal("Could not prepare SCION Context: ", err)
+	}
+
+	// hdrLen := 20 + 14 + 8 // ETH + IP + UDP
+	// pktLen := cmd.Opts.DataLen + hdrLen
+
+	connCtx, err := scion.PrepareConnectivityContext(context.Background())
+	if err != nil {
+		log.Fatal("Could not prepare SCION ConnectivityContext: ", err)
+	}
+
+	err = scion.SetDefaultPath(connCtx.DaemonConn, context.Background(), remoteSAddr)
+	if err != nil {
+		log.Fatal("Could not set default SCION Path ConnectivityContext: ", err)
+	}
+
+	bts := make([]byte, cmd.Opts.DataLen)
+	preparedPacket, err := ps.Serialize(bts)
+	if err != nil {
+		log.Fatal("Could not serialize SCION packet: ", err)
+	}
+
 	ret := int(C.perform_tx(
 		C.CString(cmd.Opts.Interface),
 		C.CString(srcAddr.IP.String()),
@@ -59,8 +95,8 @@ func main() {
 		C.ushort(cmd.Opts.Queue),
 		C.ushort(cmd.Opts.BatchSize),
 		C.ushort(cmd.Opts.DataLen),
-		unsafe.Pointer(&bts[0]),
-		C.int(10)))
+		unsafe.Pointer(&preparedPacket[0]),
+		C.int(len(preparedPacket))))
 
 	if ret == -1 {
 		errStr := C.GoString(C.LastError())
