@@ -344,7 +344,8 @@ prepare_and_send_packets(struct send_info *info)
     update_iph_checksum(iph);
 
     // Initialize payload data.
-    // unsigned char *data = (unsigned char *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len);
+    unsigned char *data = (unsigned char *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len);
+    memcpy(data, info->scion_header, info->scion_header_len);
 
     // TODO: UDP HEader checksum
     __u16 pckt_len = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + info->data_len;
