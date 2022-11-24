@@ -90,7 +90,10 @@ struct send_info
     __u16 data_len;
     unsigned int queue;
     struct xsk_socket_info *xsk;
+    __u16 batch_size;
 };
+
+int main_c(int argc, char *argv[]);
 
 struct xsk_socket_info *setup_socket(const char *interface, unsigned int queue);
 void *prepare_and_send_packets(struct send_info *info);

@@ -57,9 +57,9 @@ libbpf:
 af_xdp: mk_build
 	$(CC) -I $(LIBBPF_SRC_DIR) $(GLOBAL_FLAGS) -c -o $(BUILD_DIR)/$(AF_XDP_OUT) $(SRC_DIR)/$(AF_XDP_SRC) 
 
-# The main program.
+# The main program. $(CC) -I $(LIBBPF_SRC_DIR) $(GLOBAL_FLAGS) $(MAIN_FLAGS) -o $(BUILD_DIR)/$(MAIN_OUT) $(LIBBPF_OBJS) $(MAIN_OBJS) $(SRC_DIR)/$(MAIN_SRC)
 main: mk_build $(COMMON_OBJS)
-	$(CC) -I $(LIBBPF_SRC_DIR) $(GLOBAL_FLAGS) $(MAIN_FLAGS) -o $(BUILD_DIR)/$(MAIN_OUT) $(LIBBPF_OBJS) $(MAIN_OBJS) $(SRC_DIR)/$(MAIN_SRC)
+	
 
 # Cleanup (remove build files).
 clean:

@@ -47,25 +47,12 @@ static uint64_t xsk_alloc_umem_frame(struct xsk_socket_info *xsk)
     return frame;
 }
 
-static void xsk_free_umem_frame(struct xsk_socket_info *xsk, uint64_t frame)
-{
-    assert(xsk->umem_frame_free < NUM_FRAMES);
-
-    xsk->umem_frame_addr[xsk->umem_frame_free++] = frame;
-}
-
-static uint64_t xsk_umem_free_frames(struct xsk_socket_info *xsk)
-{
-    return xsk->umem_frame_free;
-}
-
 static struct xsk_socket_info *xsk_configure_socket(const char *ifname, unsigned int queue,
                                                     struct xsk_umem_info *umem)
 {
     struct xsk_socket_config xsk_cfg;
     struct xsk_socket_info *xsk_info;
     uint32_t idx;
-    uint32_t prog_id = 0;
     int i;
     int ret;
 
@@ -156,21 +143,6 @@ struct xsk_socket_info *setup_socket(const char *interface, unsigned int queue)
 /**
  * ----------------------------------------- Write Packets --------------------------------------------
  */
-
-static void kick_tx(struct xsk_socket_info *xsk)
-{
-    int ret;
-    do
-    {
-        ret = sendto(xsk_socket__fd(xsk->xsk), NULL, 0, MSG_DONTWAIT, NULL, 0);
-    } while (ret < 0 && errno == EAGAIN);
-
-    if (ret < 0 && errno != ENOBUFS && errno != EBUSY)
-    {
-        printf("Exit with code %d\n", ret);
-        exit(ret);
-    }
-}
 
 /*
  * Completes the TX call via a syscall and also checks if we need to free the TX buffer.
@@ -296,29 +268,20 @@ void *
 prepare_and_send_packets(struct send_info *info)
 {
     printf("Starting to send packets2\n");
+    batch_size = info->batch_size;
 
     // Let's parse some config values before creating the socket so we know what we're doing.
     __u8 protocol = IPPROTO_UDP;
     __u8 src_mac[ETH_ALEN];
     __u8 dst_mac[ETH_ALEN];
-    __u8 payload[MAX_PCKT_LEN];
-    __u16 exact_pl_len = 0;
-    __u16 data_len;
-
-    ;
 
     get_mac_address(info->src_mac, src_mac);
     get_mac_address(info->dst_mac, dst_mac);
 
     /* Our goal below is to set as many things before the while loop as possible since any additional instructions inside the while loop will impact performance. */
 
-    // Some variables to help decide the randomness of our packets.
-    __u8 need_csum = 1;
-    __u8 need_l4_csum = 1;
-    __u8 need_len_recal = 1;
-
     // Create rand_r() seed.
-    unsigned int seed;
+    // unsigned int seed;
 
     // Initialize buffer for the packet itself.
     char buffer[MAX_PCKT_LEN];
@@ -327,7 +290,7 @@ prepare_and_send_packets(struct send_info *info)
     __u8 l4_len;
 
     // Source IP string for a random-generated IP address.
-    char s_ip[32];
+    // char s_ip[32];
 
     // Initialize Ethernet header.
     struct ethhdr *eth = (struct ethhdr *)(buffer);
@@ -355,7 +318,7 @@ prepare_and_send_packets(struct send_info *info)
 
     // // TODO: Dest IP
     struct in_addr daddr;
-    // inet_aton(ti->seq.ip.dst_ip, &daddr);
+    inet_aton(info->dst_ip, &daddr);
 
     iph->daddr = daddr.s_addr;
     udph = (struct udphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
@@ -381,7 +344,7 @@ prepare_and_send_packets(struct send_info *info)
     update_iph_checksum(iph);
 
     // Initialize payload data.
-    unsigned char *data = (unsigned char *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len);
+    // unsigned char *data = (unsigned char *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len);
 
     // TODO: UDP HEader checksum
     __u16 pckt_len = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + info->data_len;
@@ -406,7 +369,7 @@ prepare_and_send_packets(struct send_info *info)
         }
 
         // Check if we want to send verbose output or not.
-        if (ret == 0)
+        /*if (ret == 0)
         {
             // Retrieve source and destination ports for UDP/TCP protocols.
             __u16 srcport = 0;
@@ -418,9 +381,40 @@ prepare_and_send_packets(struct send_info *info)
                 dstport = ntohs(udph->dest);
             }
             // fprintf(stdout, "Sent %d bytes of data from %s:%d to %s:%d.\n", pckt_len, s_ip, srcport, info->dst_ip, dstport);
-        }
+        }*/
 
         // usleep(1);
         // Check data.
     }
+}
+
+int main_c(int argc, char *argv[])
+{
+
+    struct send_info info;
+    info.data_len = 1440;
+    info.device = argv[1];
+    info.src_ip = argv[2];
+    info.dst_ip = argv[3];
+    info.src_port = (unsigned short)atoi(argv[4]);
+    info.dst_port = (unsigned short)atoi(argv[5]);
+    info.src_mac = argv[6];
+    info.dst_mac = argv[7];
+    info.queue = (unsigned short)atoi(argv[8]);
+    info.batch_size = (unsigned short)atoi(argv[9]);
+
+    struct xsk_socket_info *xsk_inf = setup_socket(argv[1], info.queue);
+    if (xsk_inf == NULL)
+    {
+        printf("FAILED");
+        return 1;
+    }
+    info.xsk = xsk_inf;
+
+    printf("Starting to send packets\n");
+
+    prepare_and_send_packets(&info);
+
+    // Close program successfully.
+    return EXIT_SUCCESS;
 }
