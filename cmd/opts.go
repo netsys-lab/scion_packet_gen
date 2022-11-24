@@ -18,7 +18,7 @@ var Opts struct {
 
 func MustParseFlags() []string {
 	p := flags.NewParser(&Opts, flags.HelpFlag)
-	p.Usage = "scion_packet_gen [OPTIONS] [SRC_IPV4_ADDR] [DEST_IPV4_ADDR]"
+	p.Usage = "scion_packet_gen [OPTIONS] [SRC_SCION_ADDR] [DEST_SCION_ADDR]"
 	p.ShortDescription = "scion_packet_gen - AF_XDP based SCION packet generator"
 	p.LongDescription = "scion_packet_gen - AF_XDP based SCION packet generator"
 	// err is containing the usage description
