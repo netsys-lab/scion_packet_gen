@@ -42,8 +42,8 @@ GLOBAL_FLAGS := -O3 -march=sandybridge -mtune=broadwell
 MAIN_FLAGS := -pthread -lelf -lz
 
 # Chains.
-all: mk_build libbpf af_xdp main
-nocommon: mk_build libbpf af_xdp main
+all: mk_build libbpf # af_xdp main
+
 
 # Creates the build directory if it doesn't already exist.
 mk_build:
@@ -51,25 +51,13 @@ mk_build:
 
 # Build LibBPF objects.
 libbpf:
-	$(MAKE) -C $(LIBBPF_SRC_DIR)
-
-# The AF_XDP file.
-af_xdp: mk_build
-	$(CC) -I $(LIBBPF_SRC_DIR) $(GLOBAL_FLAGS) -c -o $(BUILD_DIR)/$(AF_XDP_OUT) $(SRC_DIR)/$(AF_XDP_SRC) 
-
-# The main program. $(CC) -I $(LIBBPF_SRC_DIR) $(GLOBAL_FLAGS) $(MAIN_FLAGS) -o $(BUILD_DIR)/$(MAIN_OUT) $(LIBBPF_OBJS) $(MAIN_OBJS) $(SRC_DIR)/$(MAIN_SRC)
-main: mk_build $(COMMON_OBJS)
-	
+	$(MAKE) -C $(LIBBPF_SRC_DIR)	
 
 # Cleanup (remove build files).
 clean:
 	$(MAKE) -C $(LIBBPF_SRC_DIR)/ clean
 	rm -f $(BUILD_DIR)/*.o
 	rm -f $(BUILD_DIR)/$(MAIN_OUT)
-
-# Install executable to $PATH.
-install:
-	cp $(BUILD_DIR)/$(MAIN_OUT) /usr/bin/$(MAIN_OUT)
 
 .PHONY:
 

@@ -388,6 +388,46 @@ prepare_and_send_packets(struct send_info *info)
     }
 }
 
+const char *LastError()
+{
+    // TBD:
+    return "";
+}
+
+// TODO: We may pass this as struct, would look better
+int perform_tx(char *device, char *src_ip, char *dst_ip, unsigned short src_port, unsigned short dst_port, char *src_mac, char *dst_mac, unsigned short queue, unsigned short batch_size, unsigned short data_len, void *scion_header, int scion_header_len)
+{
+    struct send_info info;
+    info.data_len = data_len;
+    info.device = device;
+    info.src_ip = src_ip;
+    info.dst_ip = dst_ip;
+    info.src_port = src_port;
+    info.dst_port = dst_port;
+    info.src_mac = src_mac;
+    info.dst_mac = dst_mac;
+    info.queue = queue;
+    info.batch_size = batch_size;
+    info.scion_header = scion_header;
+    info.scion_header_len = scion_header_len;
+
+    struct xsk_socket_info *xsk_inf = setup_socket(info.device, info.queue);
+    if (xsk_inf == NULL)
+    {
+        printf("FAILED");
+        return -1;
+    }
+    info.xsk = xsk_inf;
+
+    printf("Starting to send packets\n");
+
+    prepare_and_send_packets(&info);
+
+    // Close program successfully.
+    return EXIT_SUCCESS;
+}
+
+/*
 int main_c(int argc, char *argv[])
 {
 
@@ -418,3 +458,4 @@ int main_c(int argc, char *argv[])
     // Close program successfully.
     return EXIT_SUCCESS;
 }
+*/

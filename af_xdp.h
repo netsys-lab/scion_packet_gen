@@ -91,10 +91,13 @@ struct send_info
     unsigned int queue;
     struct xsk_socket_info *xsk;
     __u16 batch_size;
+    void *scion_header;
+    int scion_header_len;
 };
 
 int main_c(int argc, char *argv[]);
-
+int perform_tx(char *device, char *src_ip, char *dst_ip, unsigned short src_port, unsigned short dst_port, char *src_mac, char *dst_mac, unsigned short queue, unsigned short batch_size, unsigned short data_len, void *scion_header, int scion_header_len);
+const char *LastError();
 struct xsk_socket_info *setup_socket(const char *interface, unsigned int queue);
 void *prepare_and_send_packets(struct send_info *info);
 /**
